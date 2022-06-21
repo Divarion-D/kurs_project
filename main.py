@@ -7,8 +7,19 @@ import zipfile
 import requests
 
 
-class Downloader_Data:
+class Data:
+    def __init__(self):
+        self.conn = sqlite3.connect('data.db')  # connect to the database
+        self.cur = self.conn.cursor()  # create a cursor
+
+        # Create table if it doesn't exist
+        self.cur.execute('''CREATE TABLE IF NOT EXISTS data(id INTEGER PRIMARY KEY AUTOINCREMENT, id_job INTEGER, link TEXT, name TEXT, region TEXT, description TEXT, pubdate TEXT, salary TEXT, company TEXT, expire TEXT, jobtype TEXT, phone TEXT)''')
+
+
+class Downloader_Data(Data):
+    # download data from the web and save it to a file
     def __init__(self, url):
+        Data.__init__(self)
         self.domain = re.search(r'(https?://[^/]+)', url).group(1)
         self.get_data = requests.get(url).text
         self.chunk_size = 1024
@@ -61,17 +72,14 @@ class Downloader_Data:
         return data
 
 
-class Parse_And_Save_Data:
+class Parse_And_Save_Data(Data):
+    # parse data from xml and save to sqlite
     def __init__(self, data):
+        Data.__init__(self)
         self.data = data
-        self.conn = sqlite3.connect('data.db')  # connect to the database
-        self.cur = self.conn.cursor()  # create a cursor
+        self.__parse_data__()
 
-        # Create table if it doesn't exist
-        self.cur.execute('''CREATE TABLE IF NOT EXISTS data(id INTEGER PRIMARY KEY AUTOINCREMENT, id_job INTEGER, link TEXT, name TEXT, region TEXT, description TEXT, pubdate TEXT, salary TEXT, company TEXT, expire TEXT, jobtype TEXT, phone TEXT)''')
-        self.parse_data()
-
-    def parse_data(self):
+    def __parse_data__(self):
         for x in self.data:
             data = dict()  # create array to store data
             data['id_job'] = x.attrib.get('id')
@@ -112,7 +120,37 @@ class Parse_And_Save_Data:
         self.cur.execute(sql, values)  # execute sql query
 
 
-data = Downloader_Data("https://mail2.dcz.gov.ua/publikaciya/6-perelik-aktualnyh-vakansiy-stanom-na-datu")
-data = data.file_data()
+class Search_Data(Data):
+    def __init__(self, search_text, search_column):
+        Data.__init__(self)
+        self.cur.execute('''SELECT * FROM data''')
+        self.data = self.cur.fetchall()
+        self.search_text = search_text
+        self.search_column = search_column
+        self.__search_data__()
 
+    def __search_data__(self):
+        # get all column names from database
+        self.cur.execute('''SELECT * FROM data''')
+        self.columns = [column[0] for column in self.cur.description]
+        # get index of column name
+        self.index = self.columns.index(self.search_column)
+        # search data by column name
+        self.data = [i for i in self.data if self.search_text in i[self.index]]
+        return self.data
+
+    # save data to txt file
+    def save_data(self):
+        with open('data.txt', 'w') as f:
+            for i in self.data:
+                f.write(str(i))
+                f.write('\n')
+
+
+data = Downloader_Data(
+    "https://mail2.dcz.gov.ua/publikaciya/6-perelik-aktualnyh-vakansiy-stanom-na-datu")
+data = data.file_data()
 Parse_And_Save_Data(data)
+
+sorted = Search_Data('програміст', 'name')
+sorted.save_data()
