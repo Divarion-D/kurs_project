@@ -15,14 +15,19 @@ class Data:
         self.parse_data = ''
 
         # Create table if it doesn't exist
-        self.cur.execute('''CREATE TABLE IF NOT EXISTS data(id INTEGER PRIMARY KEY AUTOINCREMENT, id_job INTEGER, link TEXT, name TEXT, region TEXT, description TEXT, pubdate TEXT, salary TEXT, company TEXT, expire TEXT, jobtype TEXT, phone TEXT)''')
+        self.cur.execute('''CREATE TABLE IF NOT EXISTS data(id INTEGER PRIMARY KEY AUTOINCREMENT, id_job INTEGER, link TEXT, job_name TEXT, region TEXT, description TEXT, pubdate TEXT, salary TEXT, company TEXT, expire TEXT, jobtype TEXT, phone TEXT)''')
+        self.cur.execute("SELECT * FROM data")  # set cursor to the table
+        self.columns = [description[0]
+                        for description in self.cur.description]  # get the column names
+        self.columns.pop(0)  # remove the id column
 
     def download_data(self, url):
         """
         It downloads data from a url, parses it, and saves it
-
         :param url: The URL of the file you want to download
         """
+        if os.path.exists('data.db'): # if the database exists, delete it
+            os.remove('data.db') # delete the database
         data_down = Downloader_Data(
             url)  # create a new object of the Downloader_Data class
         self.parse_data = data_down.file_data()  # parse the data
@@ -37,24 +42,26 @@ class Data:
 
     def get_columns(self):
         """
-        It gets the column names from the database and stores them in a list
-        :return: The column names of the table.
+        It returns the column names
+        :return: the column names
         """
-        self.cur.execute("SELECT * FROM data")  # set cursor to the table
-        self.columns = [description[0]
-                        for description in self.cur.description]  # get the column names
         return self.columns  # return the column names
 
     def search_data(self, search_text, column_number, exact_search):
-        #find all data in the column_number that matches the search text
-        self.cur.execute("SELECT * FROM data WHERE " + self.columns[column_number] + " LIKE ?", (search_text,))
-        search_data = self.cur.fetchall()
+        """
+        It searches for a specific text in a specific column of the database
+        :param search_text: The text you want to search for
+        :param column_number: The number of the column you want to search in
+        :param exact_search: True if you want to search for an exact match, False if you want to search for a partial match
+        :return: The data from the database that matches the search criteria
+        """
         if exact_search:
-            search_data = [i for i in search_data if i[column_number] == search_text]
+            self.cur.execute(
+                "SELECT * FROM data WHERE " + self.columns[column_number] + " = ?", (search_text,))
         else:
-            search_data = [i for i in search_data if search_text in i[column_number]]
-        return search_data
-        
+            self.cur.execute(
+                "SELECT * FROM data WHERE " + self.columns[column_number] + " LIKE ?", ('%' + search_text + '%',))
+        return self.cur.fetchall()
 
 
 # It downloads a zip file from a url, extracts the zip file, and then parses the xml file
@@ -120,16 +127,15 @@ class Downloader_Data(Data):
         """
         if os.path.exists(self.tmp_dir):
             shutil.rmtree(self.tmp_dir)
-        
 
     def file_data(self):
         """
         It takes a file name, parses it, and returns the root of the parsed file
         :return: The data from the xml file.
         """
-        data = ET.parse(self.tmp_dir + '/' + self.name_data) # parse the file
-        data = data.getroot() # get the root of the parsed file
-        return data # return the data
+        data = ET.parse(self.tmp_dir + '/' + self.name_data)  # parse the file
+        data = data.getroot()  # get the root of the parsed file
+        return data  # return the data
 
 
 # It parses data from xml and saves it to sqlite
@@ -148,7 +154,7 @@ class Parse_And_Save_Data(Data):
             # enter data into the array
             data['id_job'] = x.attrib.get('id')
             data['link'] = self.__parse_cdata(x.find('link'))
-            data['name'] = self.__parse_cdata(x.find('name'))
+            data['job_name'] = self.__parse_cdata(x.find('name'))
             data['region'] = self.__parse_cdata(x.find('region'))
             data['description'] = self.__parse_cdata(x.find('description'))
             data['pubdate'] = self.__parse_cdata(x.find('pubdate'))
@@ -157,8 +163,8 @@ class Parse_And_Save_Data(Data):
             data['expire'] = self.__parse_cdata(x.find('expire'))
             data['jobtype'] = self.__parse_cdata(x.find('jobtype'))
             data['phone'] = self.__parse_cdata(x.find('phone'))
-            self.parse_data = data # set the parse_data variable
-            self.__save_data() # save the data to the database
+            self.parse_data = data  # set the parse_data variable
+            self.__save_data()  # save the data to the database
         self.conn.commit()  # commit changes to database
         self.conn.close()  # close connection to database
 
@@ -185,9 +191,10 @@ class Parse_And_Save_Data(Data):
         to integers, then executes the SQL query
         """
         columns = ', '.join(self.parse_data.keys())  # get all keys from data
-        placeholders = ', '.join('?' * len(self.parse_data)) # get all placeholders from data
+        # get all placeholders from data
+        placeholders = ', '.join('?' * len(self.parse_data))
         sql = 'INSERT INTO data ({}) VALUES ({})'.format(
             columns, placeholders)  # create sql query
         values = [int(x) if isinstance(x, bool)
-                  else x for x in self.parse_data.values()] # get all values from data
+                  else x for x in self.parse_data.values()]  # get all values from data
         self.cur.execute(sql, values)  # execute the query
