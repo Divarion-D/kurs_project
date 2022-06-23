@@ -19,7 +19,7 @@ class Data:
         self.cur.execute("SELECT * FROM data")  # set cursor to the table
         self.columns = [description[0]
                         for description in self.cur.description]  # get the column names
-        self.columns.pop(0)  # remove the id column
+        #self.columns.pop(0)  # remove the id column
 
     def download_data(self, url):
         """
@@ -42,10 +42,14 @@ class Data:
 
     def get_columns(self):
         """
-        It returns the column names
-        :return: the column names
+        It returns the columns of the table
+        :return: the columns of the table as a list
         """
-        return self.columns  # return the column names
+        collumns_dict = dict()
+        for i in range(len(self.columns)): 
+            collumns_dict[i] = self.columns[i] 
+        collumns_dict.pop(0) # remove the id column
+        return collumns_dict # return the columns of the table
 
     def search_data(self, search_text, column_number, exact_search):
         """
@@ -53,16 +57,21 @@ class Data:
         :param search_text: The text you want to search for
         :param column_number: The number of the column you want to search in
         :param exact_search: True if you want to search for an exact match, False if you want to search for a partial match
-        :return: The data from the database that matches the search criteria
+        :return: The data from the database that matches the search criteria into dictionaries
         """
-        if exact_search:
-            self.cur.execute(
-                "SELECT * FROM data WHERE " + self.columns[column_number] + " = ?", (search_text,))
-        else:
-            self.cur.execute(
-                "SELECT * FROM data WHERE " + self.columns[column_number] + " LIKE ?", ('%' + search_text + '%',))
-        return self.cur.fetchall()
-
+        #self.conn.row_factory = sqlite3.Row
+        self.cur = self.conn.cursor()  # create a cursor
+        self.cur.execute('''SELECT * FROM data''')  # set cursor to the table
+        rows = self.cur.fetchall()  # get all the rows
+        search_data = []  # create an empty list
+        for row in rows:
+            if exact_search:
+                if str(row[column_number]) == search_text:
+                    search_data.append(dict(zip(self.columns, row)))
+            else:
+                if search_text in str(row[column_number]):
+                    search_data.append(dict(zip(self.columns, row)))
+        return search_data
 
 # It downloads a zip file from a url, extracts the zip file, and then parses the xml file
 class Downloader_Data(Data):
