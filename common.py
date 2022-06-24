@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 import shutil
 import requests
+from fpdf import FPDF
 
 
 # It downloads data from a url, parses it, and saves it.
@@ -51,6 +52,77 @@ class Data:
         collumns_dict.pop(0) # remove the id column
         return collumns_dict # return the columns of the table
 
+    def get_count_row(self):
+        """
+        It returns the number of rows in the database
+        :return: the number of rows in the database
+        """
+        self.cur.execute('''SELECT * FROM data''')
+        rows = self.cur.fetchall()
+        return len(rows)
+
+    def export_to_txt(self, data, file_name):
+        """
+        It exports the data to a txt file
+        :param data: The data you want to export
+        :param file_name: The name of the file you want to export to
+        """
+
+        with open(file_name, 'w') as f:
+            for x in data:
+                f.write(str(x['company']) + '\n')
+                f.write('Название' + '\n')
+                f.write(str(x['job_name']) + '\n')
+                f.write('Регион' + '\n')
+                f.write(str(x['region']) + '\n')
+                f.write('О вакансии' + '\n')
+                f.write(self.__cleanhtml(str(x['description'])) + '\n')
+                f.write('Телефон: ' + str(x['phone']) + '\n')
+                f.write('Ссылка на вакансию: ' + str(x['link']) + '\n')
+                f.write('\n\n')
+        f.close()
+    
+    def export_to_pdf(self, data, file_name):
+        """
+        It exports the data to a pdf file
+        :param data: The data you want to export
+        :param file_name: The name of the file you want to export to
+        """
+        pdf = FPDF()
+
+        pdf.add_font('DejaVu', fname=r'fonts/Arial_Cyr.ttf', uni=True)
+        pdf.add_font('DejaVuBold', fname=r'fonts/Arial_Cyr_Bold.ttf', uni=True)
+
+        for x in data:
+            pdf.add_page()
+            # print company name
+            pdf.set_font('DejaVuBold', size=16)
+            pdf.multi_cell(190, 10, str(x['company']), 0, 1, 'C')
+            # print job name
+            pdf.set_font('DejaVuBold', size=16)
+            pdf.cell(190, 10, 'Название', 0, 1, 'L')
+            pdf.set_font('DejaVu', size=14)
+            pdf.multi_cell(190, 10, str(x['job_name']).capitalize(), 0, 1, 'J')
+            # print job region
+            pdf.set_font('DejaVuBold', size=16)
+            pdf.cell(190, 10, 'Регион', 0, 1, 'L')
+            pdf.set_font('DejaVu', size=14)
+            pdf.multi_cell(190, 10, str(x['region']), 0, 1, 'J')
+            # print job description
+            pdf.set_font('DejaVuBold', size=16)
+            pdf.cell(190, 10, 'О вакансии', 0, 1, 'L')
+            pdf.set_font('DejaVu', size=14)
+            pdf.multi_cell(190, 8, self.__cleanhtml(str(x['description'])), 0, 1, 'J')
+            # print some data
+            pdf.set_font('DejaVu', size=14)
+            pdf.cell(190, 4, '', 0, 1, 'L')
+            pdf.cell(190, 8, 'Телефон: ' +
+                    str(x['phone']), 0, 1, 'L', link=str(x['link']))
+            pdf.cell(190, 8, 'Ссылка на вакансию: ' +
+                    str(x['link']), 0, 1, 'L', link=str(x['link']))
+        pdf.output(file_name)
+    
+
     def search_data(self, search_text, column_number, exact_search):
         """
         It searches for a specific text in a specific column of the database
@@ -72,6 +144,20 @@ class Data:
                 if search_text in str(row[column_number]):
                     search_data.append(dict(zip(self.columns, row)))
         return search_data
+
+    def __cleanhtml(self, raw_html):
+        cleantext = re.sub(re.compile('<.*?>'), '', raw_html)
+        # remove newline at the beginning
+        cleantext = re.sub(re.compile('^\n'), '', cleantext)
+        # remove ddouble  newline
+        cleantext = re.sub(re.compile('\n\n\n\n'), '\n', cleantext)
+        cleantext = re.sub(re.compile('\n\n\n'), '\n', cleantext)
+        cleantext = re.sub(re.compile('\n\n'), '\n', cleantext)
+        # remove newline at the end
+        cleantext = re.sub(re.compile('\n$'), '', cleantext)
+        # print(cleantext)
+        return cleantext
+
 
 # It downloads a zip file from a url, extracts the zip file, and then parses the xml file
 class Downloader_Data(Data):

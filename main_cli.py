@@ -1,5 +1,4 @@
 from common import Data
-import json
 
 data = Data()
 
