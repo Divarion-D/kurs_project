@@ -35,41 +35,40 @@ class App(QtWidgets.QMainWindow, Ui_Dialog):
         self.total_vac.setText(str(data_job.get_count_row()))
 
     def digit_pressed(self):
-        sender = self.sender()
-        if sender == self.update_data_btn:
-            data_job.download_data(self.url_data)
-            self.listWidget.clear()
-            self.listWidget.addItems(listbox_columns)
-        elif sender == self.search_btn:
-            column_number = self.listWidget.currentRow()
-            search_text = self.search_string.text()
-            exact_search = self.exact_search.isChecked()
+        sender = self.sender() # Получаем объект кнопки которая вызвала функцию
+        if sender == self.update_data_btn: # Если нажата кнопка обновления данных
+            data_job.download_data(self.url_data) # Обновляем данные
+            self.total_vac.setText(str(data_job.get_count_row())) # Обновляем количество вакансий
+        elif sender == self.search_btn: # Если нажата кнопка поиска
+            column_number = self.listWidget.currentRow() # Получаем номер колонки
+            search_text = self.search_string.text() # Получаем текст для поиска
+            exact_search = self.exact_search.isChecked() 
             self.searc_data = data_job.search_data(
-                search_text, column_number, exact_search)
-            self.found_vac.setText(str(len(self.searc_data)))
-        elif sender == self.export_txt_btn:
-            if self.searc_data != None:
-                filename = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "Vacancies.txt")
-                data_job.export_to_txt(self.searc_data, filename[0])
-                self.dialog.setText("Successfully exported to txt")
-                self.dialog.setDefaultButton(self.dialog.Ok)
-                self.dialog.exec_()
-        elif sender == self.export_pdf_btn:
-            if self.searc_data != None:
-                filename = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "Vacancies.pdf")
-                data_job.export_to_pdf(self.searc_data, filename[0])
-                self.dialog.setText("Successfully exported to pdf")
-                self.dialog.setDefaultButton(self.dialog.Ok)
-                self.dialog.exec_()
-        elif sender == self.exit_btn:
-            sys.exit()
+                search_text, column_number, exact_search) # Поиск данных
+            self.found_vac.setText(str(len(self.searc_data))) # Обновляем количество найденных данных
+        elif sender == self.export_txt_btn: # Если нажата кнопка экспорта в текстовый файл
+            if self.searc_data != None: # Если данные поиска не пустые
+                filename = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "Vacancies.txt") # Получаем имя файла
+                data_job.export_to_txt(self.searc_data, filename[0]) # Экспорт данных в текстовый файл
+                self.dialog.setText("Successfully exported to txt") # Обновляем текст в диалоговом окне
+                self.dialog.setDefaultButton(self.dialog.Ok) # Устанавливаем кнопку по умолчанию
+                self.dialog.exec_() # Отображаем диалоговое окно
+        elif sender == self.export_pdf_btn: # Если нажата кнопка экспорта в pdf
+            if self.searc_data != None: # Если данные поиска не пустые
+                filename = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "Vacancies.pdf") # Получаем имя файла
+                data_job.export_to_pdf(self.searc_data, filename[0]) # Экспорт данных в pdf
+                self.dialog.setText("Successfully exported to pdf") # Обновляем текст в диалоговом окне
+                self.dialog.setDefaultButton(self.dialog.Ok) # Устанавливаем кнопку по умолчанию
+                self.dialog.exec_() # Отображаем диалоговое окно
+        elif sender == self.exit_btn: # Если нажата кнопка выхода
+            sys.exit() # Выход из программы
         
     
 
 if __name__ == '__main__':
     # Новый экземпляр QApplication
     app = QtWidgets.QApplication(sys.argv)
-    # Сздание инстанса класса
-    calc = App()
+    # Содание объекта главного окна
+    aplic = App()
     # Запуск
     sys.exit(app.exec_())

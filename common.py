@@ -8,64 +8,65 @@ import requests
 from fpdf import FPDF
 
 
-# It downloads data from a url, parses it, and saves it.
+# Он загружает данные из url, анализирует их и сохраняет.
 class Data:
     def __init__(self):
-        self.conn = sqlite3.connect('data.db')  # connect to the database
-        self.cur = self.conn.cursor()  # create a cursor
-        self.parse_data = ''
+        self.conn = sqlite3.connect('data.db') # создаем соединение с базой данных
+        self.cur = self.conn.cursor() # создаем курсор
+        self.parse_data = '' # пустой список для данных
 
-        # Create table if it doesn't exist
+        # Создаем таблицу если ее нет
         self.cur.execute('''CREATE TABLE IF NOT EXISTS data(id INTEGER PRIMARY KEY AUTOINCREMENT, id_job INTEGER, link TEXT, job_name TEXT, region TEXT, description TEXT, pubdate TEXT, salary TEXT, company TEXT, expire TEXT, jobtype TEXT, phone TEXT)''')
-        self.cur.execute("SELECT * FROM data")  # set cursor to the table
+        self.cur.execute("SELECT * FROM data") # устанавливаем курсор на таблицу
         self.columns = [description[0]
-                        for description in self.cur.description]  # get the column names
-        #self.columns.pop(0)  # remove the id column
+                        for description in self.cur.description] # получаем названия столбцов
+        self.conn.commit() # подтверждаем изменения в базе данных
 
     def download_data(self, url):
         """
-        It downloads data from a url, parses it, and saves it
-        :param url: The URL of the file you want to download
+        Он загружает данные из url, анализирует их и сохраняет.
+        :param url: Ссылка на сайт вакансий
         """
-        if os.path.exists('data.db'): # if the database exists, delete it
-            os.remove('data.db') # delete the database
-        data_down = Downloader_Data(
-            url)  # create a new object of the Downloader_Data class
-        self.parse_data = data_down.file_data()  # parse the data
-        data_down.delete_tmp()  # delete the temporary file
-        self.save_data()  # save the data to a file
+        # Очистить базу данных если в ней есть данные
+        if self.get_count_row() > 0:
+            self.cur.execute('''DELETE FROM data''')
+            self.conn.commit()
+        
+        data_down = Downloader_Data(url) # Загрузить данные
+        self.parse_data = data_down.file_data() # получаем данные из файла
+        data_down.delete_tmp() # удаляем временную папку
+        self.save_data() # сохраняем данные в базу данных
 
     def save_data(self):
         """
-        It takes the data from the parse_data function and saves it to a file
+        Он получает данные из функции parse_data и сохраняет их в файл
         """
         Parse_And_Save_Data(self.parse_data)
 
     def get_columns(self):
         """
-        It returns the columns of the table
-        :return: the columns of the table as a list
+        Получить названия столбцов
+        :return: Названия столбцов
         """
-        collumns_dict = dict()
+        collumns_dict = dict() # словарь для названий столбцов
         for i in range(len(self.columns)): 
-            collumns_dict[i] = self.columns[i] 
-        collumns_dict.pop(0) # remove the id column
-        return collumns_dict # return the columns of the table
+            collumns_dict[i] = self.columns[i]  # заполняем словарь
+        collumns_dict.pop(0) # удаляем первый элемент из словаря
+        return collumns_dict # возвращает словарь
 
     def get_count_row(self):
         """
-        It returns the number of rows in the database
-        :return: the number of rows in the database
+        Получить количество строк в таблице
+        :return: Количество строк
         """
-        self.cur.execute('''SELECT * FROM data''')
-        rows = self.cur.fetchall()
-        return len(rows)
+        self.cur.execute("SELECT COUNT(*) FROM data")
+        return self.cur.fetchone()[0]
 
     def export_to_txt(self, data, file_name):
         """
-        It exports the data to a txt file
-        :param data: The data you want to export
-        :param file_name: The name of the file you want to export to
+        Он экспортирует данные в файл txt
+        :param data: Данные для экспорта
+        :param file_name: Имя файла
         """
 
         with open(file_name, 'w') as f:
@@ -80,13 +81,12 @@ class Data:
                 f.write('Телефон: ' + str(x['phone']) + '\n')
                 f.write('Ссылка на вакансию: ' + str(x['link']) + '\n')
                 f.write('\n\n')
-        f.close()
     
     def export_to_pdf(self, data, file_name):
         """
-        It exports the data to a pdf file
-        :param data: The data you want to export
-        :param file_name: The name of the file you want to export to
+        Он экспортирует данные в файл pdf
+        :param data: Данные для экспорта
+        :param file_name: Имя файла
         """
         pdf = FPDF()
 
@@ -122,44 +122,45 @@ class Data:
                     str(x['link']), 0, 1, 'L', link=str(x['link']))
         pdf.output(file_name)
     
-
     def search_data(self, search_text, column_number, exact_search):
         """
-        It searches for a specific text in a specific column of the database
-        :param search_text: The text you want to search for
-        :param column_number: The number of the column you want to search in
-        :param exact_search: True if you want to search for an exact match, False if you want to search for a partial match
-        :return: The data from the database that matches the search criteria into dictionaries
+        Поиск данных в таблице
+        :param search_text: Текст для поиска
+        :param column_number: Номер столбца для поиска
+        :param exact_search: True, если вы хотите искать точное совпадение, False, если вы хотите искать частичное совпадение
+        :return: Данные из базы данных, соответствующие критериям поиска, в словаре
         """
-        #self.conn.row_factory = sqlite3.Row
-        self.cur = self.conn.cursor()  # create a cursor
-        self.cur.execute('''SELECT * FROM data''')  # set cursor to the table
-        rows = self.cur.fetchall()  # get all the rows
-        search_data = []  # create an empty list
-        for row in rows:
-            if exact_search:
-                if str(row[column_number]) == search_text:
-                    search_data.append(dict(zip(self.columns, row)))
+        self.cur.execute('''SELECT * FROM data''')  # устанавливаем курсор на таблицу
+        rows = self.cur.fetchall()  # получаем все данные из таблицы
+        search_data = []  # создаем пустой список для данных поиска
+        for row in rows: # проходим по всем строкам
+            if exact_search: # если выбрана точная поисковая строка
+                if str(row[column_number]) == search_text: # если строка совпадает с поисковой строкой
+                    search_data.append(dict(zip(self.columns, row))) # добавляем данные в список
             else:
-                if search_text in str(row[column_number]):
-                    search_data.append(dict(zip(self.columns, row)))
-        return search_data
+                if search_text in str(row[column_number]): # если строка содержит поисковую строку
+                    search_data.append(dict(zip(self.columns, row))) # добавляем данные в список
+        return search_data # возвращаем список данных поиска
 
     def __cleanhtml(self, raw_html):
+        """
+        Очистка html кода
+        :param raw_html: Код html
+        :return: Очищенный код html
+        """
         cleantext = re.sub(re.compile('<.*?>'), '', raw_html)
-        # remove newline at the beginning
+        # удалить новую строку в начале
         cleantext = re.sub(re.compile('^\n'), '', cleantext)
-        # remove ddouble  newline
+        # удалить двойную новую строку
         cleantext = re.sub(re.compile('\n\n\n\n'), '\n', cleantext)
         cleantext = re.sub(re.compile('\n\n\n'), '\n', cleantext)
         cleantext = re.sub(re.compile('\n\n'), '\n', cleantext)
-        # remove newline at the end
+        # удалить новую строку в конце
         cleantext = re.sub(re.compile('\n$'), '', cleantext)
-        # print(cleantext)
         return cleantext
 
 
-# It downloads a zip file from a url, extracts the zip file, and then parses the xml file
+# Он загружает zip-файл по url, извлекает zip-файл, а затем анализирует xml-файл.
 class Downloader_Data(Data):
     def __init__(self, url):
         Data.__init__(self)
@@ -174,66 +175,61 @@ class Downloader_Data(Data):
 
     def __search_url(self):
         """
-        It takes the data from the get_data variable, and searches for a link that ends in .zip
+        Он берет данные из переменной get_data и ищет ссылку, которая заканчивается на .zip
         """
-        regexp = re.compile('<a.*?href="(.*?)".*?>(.*?)</a>')
-        data_url = regexp.findall(self.get_data)
-        for i in data_url:
-            regexp = re.compile(r"sites/default/files/.+?.zip")
-            url = regexp.findall(i[0])
-            if url:
-                self.file_url = self.domain + "/" + url[0]  # set the file url
-                self.__download_file()  # download the file
+        regexp = re.compile('<a.*?href="(.*?)".*?>(.*?)</a>') # поиск ссылки на файл
+        data_url = regexp.findall(self.get_data) # получаем ссылку на файл
+        for i in data_url: # проходим по всем ссылкам
+            regexp = re.compile(r"sites/default/files/.+?.zip") # поиск ссылки на файл
+            url = regexp.findall(i[0]) # получаем ссылку на файл
+            if url: # если ссылка на файл найдена
+                self.file_url = self.domain + "/" + url[0]  # собрать строку url для скачивания файла
+                self.__download_file()  # загрузить файл
                 break
 
     def __download_file(self):
         """
-        It downloads the file from the url, and then extracts it
+        Он загружает файл по url, а затем извлекает его
         """
-        if not os.path.exists(self.tmp_dir):  # if the temporary directory doesn't exist
-            os.makedirs(self.tmp_dir)  # create the temporary directory
-        r = requests.get(self.file_url, stream=True)  # download the file
-        with open(self.tmp_dir + '/' + self.down_data_name, 'wb') as f:  # save the file
-            # iterate through the file
-            for chunk in r.iter_content(chunk_size=self.chunk_size):
-                if chunk:  # if the chunk is not empty
-                    f.write(chunk)  # write the chunk to the file
-                    f.flush()  # flush the file
-            f.close()  # close the file
-        self.__extract_file()  # extract the file
+        if not os.path.exists(self.tmp_dir):  # если временная папка не существует
+            os.makedirs(self.tmp_dir)  # создать временную папку
+        r = requests.get(self.file_url, stream=True)  # загрузить файл
+        with open(self.tmp_dir + '/' + self.down_data_name, 'wb') as f:  # записать файл в временную папку
+            for chunk in r.iter_content(chunk_size=self.chunk_size): # построчно записать файл
+                if chunk:  # если есть данные
+                    f.write(chunk)  # записать файл
+                    f.flush()  # обновить буфер
+        self.__extract_file()  # извлечь файл
 
     def __extract_file(self):
         """
-        It downloads a zip file, extracts it, and then deletes the zip file
+        Распаковка файла
         """
         with zipfile.ZipFile(self.tmp_dir + '/' + self.down_data_name, 'r') as zip_ref:
-            zip_ref.extractall(self.tmp_dir)  # extract the zip file
-            zip_ref.close()  # close the zip file
-            # delete the zip file
-            os.remove(self.tmp_dir + '/' + self.down_data_name)
-            # iterate through the files in the temporary directory
-            for file in os.listdir(self.tmp_dir):
-                os.rename(os.path.join(self.tmp_dir, file),
-                          os.path.join(self.tmp_dir, self.name_data))  # rename the file
+            zip_ref.extractall(self.tmp_dir)  # распаковать файл
+            os.remove(self.tmp_dir + '/' + self.down_data_name) # удалить файл
+            for file in os.listdir(self.tmp_dir): # проходим по всем файлам в временной папке
+                os.rename(os.path.join(self.tmp_dir, file), 
+                          os.path.join(self.tmp_dir, self.name_data))  # переименовать файл
 
     def delete_tmp(self):
         """
-        It deletes the temporary directory if it exists
+        Удаление временной папки
         """
         if os.path.exists(self.tmp_dir):
             shutil.rmtree(self.tmp_dir)
 
     def file_data(self):
         """
-        It takes a file name, parses it, and returns the root of the parsed file
-        :return: The data from the xml file.
+        Он принимает имя файла, разбирает его и возвращает корень разобранного файла
+        :return: корень разобранного файла
         """
-        data = ET.parse(self.tmp_dir + '/' + self.name_data)  # parse the file
-        data = data.getroot()  # get the root of the parsed file
-        return data  # return the data
+        data = ET.parse(self.tmp_dir + '/' + self.name_data)  # парсит файл
+        data = data.getroot()  # получает корень файла
+        return data
 
 
-# It parses data from xml and saves it to sqlite
+# Разбирает данные из xml и сохраняет их в sqlite
 class Parse_And_Save_Data(Data):
     def __init__(self, data):
         Data.__init__(self)
@@ -242,11 +238,11 @@ class Parse_And_Save_Data(Data):
 
     def __parse_data(self):
         """
-        It takes the XML data from the API, parses it, and saves it to a database
+        Разбирает данные из xml и сохраняет их в sqlite
         """
         for x in self.data:
-            data = dict()  # create array to store data
-            # enter data into the array
+            data = dict()  # словарь для хранения данных
+            # проходим по всем элементам в файле
             data['id_job'] = x.attrib.get('id')
             data['link'] = self.__parse_cdata(x.find('link'))
             data['job_name'] = self.__parse_cdata(x.find('name'))
@@ -258,38 +254,36 @@ class Parse_And_Save_Data(Data):
             data['expire'] = self.__parse_cdata(x.find('expire'))
             data['jobtype'] = self.__parse_cdata(x.find('jobtype'))
             data['phone'] = self.__parse_cdata(x.find('phone'))
-            self.parse_data = data  # set the parse_data variable
-            self.__save_data()  # save the data to the database
-        self.conn.commit()  # commit changes to database
-        self.conn.close()  # close connection to database
+            self.parse_data = data  # записываем данные в переменную
+            self.__save_data()  # сохраняем данные в базу данных
+        self.conn.commit()  # подтверждаем изменения в базе данных
+
 
     def __parse_cdata(self, data):
         """
-        It takes a cdata tag and returns the text inside the tag
-
-        :param data: the data to be parsed
-        :return: The text inside the cdata tag.
+        Он принимает тег cdata и возвращает текст внутри тега
+        :param data: тег cdata
+        :return: текст внутри тега
         """
         try:
-            data = data.text  # get the text inside the cdata
+            data = data.text  # получаем текст внутри тега
         except AttributeError:
-            data = ''
-        data = data.replace('![CDATA[', '')  # remove the cdata tag
-        data = data.replace(']]', '')  # remove the cdata tag
+            data = '' # если нет текста возвращаем пустую строку
+        data = data.replace('![CDATA[', '')  # удаляем тег cdata
+        data = data.replace(']]', '')  # удаляем тег cdata
         return data
 
     def __save_data(self):
         """
-        It takes the keys from the dictionary, creates a string of comma separated keys, then takes the
-        values from the dictionary, creates a string of comma separated question marks, then creates a
-        string of the SQL query, then takes the values from the dictionary, converts the boolean values
-        to integers, then executes the SQL query
+        Она берет ключи из словаря, создает строку ключей, разделенных запятыми, затем берет
+        значения из словаря, создает строку из разделенных запятыми вопросительных знаков, затем создает
+        строку SQL-запроса, затем берет значения из словаря, преобразует булевы значения в целые числа, затем выполняет SQL-запрос.
+        в целые числа, затем выполняет SQL-запрос
         """
-        columns = ', '.join(self.parse_data.keys())  # get all keys from data
-        # get all placeholders from data
-        placeholders = ', '.join('?' * len(self.parse_data))
-        sql = 'INSERT INTO data ({}) VALUES ({})'.format(
-            columns, placeholders)  # create sql query
+        columns = ', '.join(self.parse_data.keys())  # получаем строку ключей, разделенных запятыми
+        placeholders = ', '.join('?' * len(self.parse_data)) # получаем строку вопросительных знаков, разделенных запятыми
+        sql = 'INSERT INTO data ({}) VALUES ({})'.format( 
+            columns, placeholders)  # создаем строку SQL-запроса
         values = [int(x) if isinstance(x, bool)
-                  else x for x in self.parse_data.values()]  # get all values from data
-        self.cur.execute(sql, values)  # execute the query
+                  else x for x in self.parse_data.values()]  # преобразуем булевы значения в целые числа
+        self.cur.execute(sql, values)  # выполняем SQL-запрос
