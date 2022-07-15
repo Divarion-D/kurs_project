@@ -16,7 +16,7 @@ class Data:
         self.parse_data = '' # пустой список для данных
 
         # Создаем таблицу если ее нет
-        self.cur.execute('''CREATE TABLE IF NOT EXISTS data(id INTEGER PRIMARY KEY AUTOINCREMENT, id_job INTEGER, link TEXT, job_name TEXT, region TEXT, description TEXT, pubdate TEXT, salary TEXT, company TEXT, expire TEXT, jobtype TEXT, phone TEXT)''')
+        self.cur.execute('''CREATE TABLE IF NOT EXISTS data(id INTEGER PRIMARY KEY AUTOINCREMENT, id_job INTEGER, link TEXT, job_name TEXT, region TEXT, description TEXT, pubdate TEXT, salary TEXT, company TEXT, expire TEXT, phone TEXT)''')
         self.cur.execute("SELECT * FROM data") # устанавливаем курсор на таблицу
         self.columns = [description[0]
                         for description in self.cur.description] # получаем названия столбцов
@@ -62,6 +62,16 @@ class Data:
         self.cur.execute("SELECT COUNT(*) FROM data")
         return self.cur.fetchone()[0]
 
+    def get_all_data_column(self, column):
+        """
+        Получить все данные из столбца
+        :param column: ID столбца
+        :return: Все данные из столбца
+        """
+        self.cur.execute("SELECT * FROM data")
+        return [row[column+1] for row in self.cur.fetchall()]
+
+
     def export_to_txt(self, data, file_name):
         """
         Он экспортирует данные в файл txt
@@ -77,7 +87,7 @@ class Data:
                 f.write('Регион' + '\n')
                 f.write(str(x['region']) + '\n')
                 f.write('О вакансии' + '\n')
-                f.write(self.__cleanhtml(str(x['description'])) + '\n')
+                f.write(str(x['description']))
                 f.write('Телефон: ' + str(x['phone']) + '\n')
                 f.write('Ссылка на вакансию: ' + str(x['link']) + '\n')
                 f.write('\n\n')
@@ -112,7 +122,7 @@ class Data:
             pdf.set_font('DejaVuBold', size=16)
             pdf.cell(190, 10, 'О вакансии', 0, 1, 'L')
             pdf.set_font('DejaVu', size=14)
-            pdf.multi_cell(190, 8, self.__cleanhtml(str(x['description'])), 0, 1, 'J')
+            pdf.multi_cell(190, 8, str(x['description']), 0, 1, 'J')
             # print some data
             pdf.set_font('DejaVu', size=14)
             pdf.cell(190, 4, '', 0, 1, 'L')
@@ -135,29 +145,13 @@ class Data:
         search_data = []  # создаем пустой список для данных поиска
         for row in rows: # проходим по всем строкам
             if exact_search: # если выбрана точная поисковая строка
-                if str(row[column_number]) == search_text: # если строка совпадает с поисковой строкой
+                if str(row[column_number+1]) == search_text: # если строка совпадает с поисковой строкой
                     search_data.append(dict(zip(self.columns, row))) # добавляем данные в список
             else:
-                if search_text in str(row[column_number]): # если строка содержит поисковую строку
+                if search_text in str(row[column_number+1]): # если строка содержит поисковую строку
                     search_data.append(dict(zip(self.columns, row))) # добавляем данные в список
         return search_data # возвращаем список данных поиска
 
-    def __cleanhtml(self, raw_html):
-        """
-        Очистка html кода
-        :param raw_html: Код html
-        :return: Очищенный код html
-        """
-        cleantext = re.sub(re.compile('<.*?>'), '', raw_html)
-        # удалить новую строку в начале
-        cleantext = re.sub(re.compile('^\n'), '', cleantext)
-        # удалить двойную новую строку
-        cleantext = re.sub(re.compile('\n\n\n\n'), '\n', cleantext)
-        cleantext = re.sub(re.compile('\n\n\n'), '\n', cleantext)
-        cleantext = re.sub(re.compile('\n\n'), '\n', cleantext)
-        # удалить новую строку в конце
-        cleantext = re.sub(re.compile('\n$'), '', cleantext)
-        return cleantext
 
 
 # Он загружает zip-файл по url, извлекает zip-файл, а затем анализирует xml-файл.
@@ -247,12 +241,11 @@ class Parse_And_Save_Data(Data):
             data['link'] = self.__parse_cdata(x.find('link'))
             data['job_name'] = self.__parse_cdata(x.find('name'))
             data['region'] = self.__parse_cdata(x.find('region'))
-            data['description'] = self.__parse_cdata(x.find('description'))
+            data['description'] = self.__cleanhtml(str(self.__parse_cdata(x.find('description'))))
             data['pubdate'] = self.__parse_cdata(x.find('pubdate'))
             data['salary'] = self.__parse_cdata(x.find('salary'))
             data['company'] = self.__parse_cdata(x.find('company'))
             data['expire'] = self.__parse_cdata(x.find('expire'))
-            data['jobtype'] = self.__parse_cdata(x.find('jobtype'))
             data['phone'] = self.__parse_cdata(x.find('phone'))
             self.parse_data = data  # записываем данные в переменную
             self.__save_data()  # сохраняем данные в базу данных
@@ -272,6 +265,23 @@ class Parse_And_Save_Data(Data):
         data = data.replace('![CDATA[', '')  # удаляем тег cdata
         data = data.replace(']]', '')  # удаляем тег cdata
         return data
+
+    def __cleanhtml(self, raw_html):
+        """
+        Очистка html кода
+        :param raw_html: Код html
+        :return: Очищенный код html
+        """
+        cleantext = re.sub(re.compile('<.*?>'), '', raw_html)
+        # удалить новую строку в начале
+        cleantext = re.sub(re.compile('^\n'), '', cleantext)
+        # удалить двойную новую строку
+        cleantext = re.sub(re.compile('\n\n\n\n'), '\n', cleantext)
+        cleantext = re.sub(re.compile('\n\n\n'), '\n', cleantext)
+        cleantext = re.sub(re.compile('\n\n'), '\n', cleantext)
+        # удалить новую строку в конце
+        cleantext = re.sub(re.compile('\n$'), '', cleantext)
+        return cleantext
 
     def __save_data(self):
         """
